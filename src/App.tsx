@@ -180,13 +180,16 @@ export default function App() {
   const [currentView, setCurrentView] = useState('main'); // main, add-product, edit-product, checkout, receipt, notifications, history, expense
 
   useEffect(() => {
+    if (shopInfo?.name) {
+      document.title = shopInfo.name;
+    }
     if (shopInfo?.logoUrl) {
       const favicon = document.getElementById('favicon') as HTMLLinkElement;
       if (favicon) {
         favicon.href = shopInfo.logoUrl;
       }
     }
-  }, [shopInfo?.logoUrl]);
+  }, [shopInfo]);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);

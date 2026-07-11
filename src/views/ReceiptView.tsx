@@ -148,7 +148,7 @@ export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId
         <div id="receipt-content" className="w-full bg-white rounded-3xl shadow-xl shadow-on-surface/5 p-8 relative mb-8 overflow-hidden border border-outline-variant/30">
           <div className="flex flex-col items-center mb-6 text-center">
             {shopInfo?.logoUrl ? (
-              <img src={shopInfo.logoUrl} alt="Logo" className="w-16 h-16 object-contain mb-4" />
+              <img src={shopInfo.logoUrl} alt="Logo" className="w-16 h-16 object-contain mb-4 filter grayscale contrast-125" />
             ) : (
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
                 <ShoppingBag className="w-8 h-8 text-primary" />
