@@ -3,52 +3,140 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CheckCircle2, Wallet, QrCode, Printer, Send, Plus, ShoppingBag, Bell } from 'lucide-react';
+import { CheckCircle2, Wallet, QrCode, Printer, Send, Plus, ShoppingBag, Bell, ArrowLeft, MessageCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState, useEffect } from 'react';
-import { Transaction } from '../types';
+import { Transaction, ShopInfo } from '../types';
 import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId: string, onNewTransaction: () => void }) => {
   const [transaction, setTransaction] = useState<Transaction | null>(null);
+  const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchTransaction = async () => {
-      const docRef = doc(db, 'transactions', transactionId);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setTransaction({ id: docSnap.id, ...docSnap.data() } as Transaction);
+    const fetchData = async () => {
+      try {
+        const transRef = doc(db, 'transactions', transactionId);
+        const transSnap = await getDoc(transRef);
+        
+        if (transSnap.exists()) {
+          setTransaction({ id: transSnap.id, ...transSnap.data() } as Transaction);
+        }
+
+        const shopRef = doc(db, 'settings', 'shopInfo');
+        const shopSnap = await getDoc(shopRef);
+        if (shopSnap.exists()) {
+          setShopInfo(shopSnap.data() as ShopInfo);
+        }
+      } catch (err) {
+        console.error('Error fetching receipt data:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
-    fetchTransaction();
+    fetchData();
   }, [transactionId]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  if (!transaction) return <div className="min-h-screen flex items-center justify-center">Transaksi tidak ditemukan</div>;
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleWhatsApp = () => {
+    if (!transaction) return;
+
+    const phoneNumber = prompt('Masukkan nomor WhatsApp tujuan (contoh: 628123456789):', '62');
+    if (!phoneNumber) return;
+
+    let message = `*STRUK PEMBAYARAN - ${shopInfo?.name || 'Fattina POS'}*\n`;
+    message += `--------------------------------\n`;
+    message += `Inv: #${transaction.invoiceNumber}\n`;
+    message += `Tgl: ${transaction.date?.toDate().toLocaleDateString('id-ID')} ${transaction.date?.toDate().toLocaleTimeString('id-ID')}\n`;
+    message += `--------------------------------\n`;
+    
+    transaction.items.forEach(item => {
+      message += `${item.name}\n`;
+      message += `${item.quantity} x Rp ${item.price.toLocaleString('id-ID')} = Rp ${(item.price * item.quantity).toLocaleString('id-ID')}\n`;
+    });
+    
+    message += `--------------------------------\n`;
+    message += `Subtotal: Rp ${transaction.subtotal.toLocaleString('id-ID')}\n`;
+    if (transaction.discount > 0) {
+      message += `Potongan: -Rp ${transaction.discount.toLocaleString('id-ID')}\n`;
+    }
+    message += `Pajak: Rp ${transaction.tax.toLocaleString('id-ID')}\n`;
+    message += `*TOTAL: Rp ${transaction.total.toLocaleString('id-ID')}*\n`;
+    message += `--------------------------------\n`;
+    message += `Metode: ${transaction.paymentMethod}\n`;
+    message += `\nTerima kasih atas kunjungan Anda!`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${phoneNumber.replace(/\+/g, '').replace(/\s/g, '')}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-surface">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>
+  );
+
+  if (!transaction) return (
+    <div className="min-h-screen flex items-center justify-center bg-surface">
+      <div className="text-center">
+        <p className="text-on-surface-variant font-bold">Transaksi tidak ditemukan</p>
+        <button onClick={onNewTransaction} className="mt-4 text-primary font-bold">Kembali ke Beranda</button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
-      <header className="flex justify-between items-center px-4 py-4 sticky top-0 z-50 bg-surface shadow-sm">
+    <div className="min-h-screen bg-surface flex flex-col print:bg-white">
+      {/* Print Specific Styles */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #receipt-content, #receipt-content * { visibility: visible; }
+          #receipt-content { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            padding: 0; 
+            margin: 0;
+            box-shadow: none;
+            border: none;
+          }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+
+      <header className="flex justify-between items-center px-4 py-4 sticky top-0 z-50 bg-surface/80 backdrop-blur-xl shadow-sm no-print">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center">
-            <ShoppingBag className="w-6 h-6 text-primary" />
-          </div>
-          <h1 className="text-lg font-bold text-primary">Fattina POS</h1>
+          <button onClick={onNewTransaction} className="w-10 h-10 rounded-full hover:bg-surface-container-low flex items-center justify-center transition-colors">
+            <ArrowLeft className="w-6 h-6 text-primary" />
+          </button>
+          <h1 className="text-lg font-bold text-primary">Detail Transaksi</h1>
         </div>
-        <Bell className="w-6 h-6 text-primary" />
+        <div className="flex gap-2">
+          <button onClick={handlePrint} className="p-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
+            <Printer className="w-5 h-5" />
+          </button>
+          <button onClick={handleWhatsApp} className="p-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
+            <MessageCircle className="w-5 h-5" />
+          </button>
+        </div>
       </header>
 
       <main className="flex-grow container mx-auto px-4 py-8 flex flex-col items-center max-w-md pb-40">
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="flex flex-col items-center mb-8"
+          className="flex flex-col items-center mb-8 no-print"
         >
-          <div className="w-20 h-20 rounded-full bg-primary-container flex items-center justify-center mb-4 shadow-lg shadow-primary-container/20">
-            <CheckCircle2 className="w-12 h-12 text-primary fill-primary-container" />
+          <div className="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center mb-4 shadow-lg shadow-success/10">
+            <CheckCircle2 className="w-12 h-12 text-success" />
           </div>
           <h2 className="text-2xl font-bold text-center text-on-surface">Pembayaran Berhasil</h2>
           <p className="text-sm text-on-surface-variant text-center mt-1">
@@ -56,80 +144,116 @@ export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId
           </p>
         </motion.div>
 
-        <div className="w-full bg-white rounded-2xl shadow-md p-6 relative mb-8 overflow-hidden">
-          {/* Jagged edge simulation */}
-          <div className="absolute top-0 left-0 right-0 h-1 flex">
-             {Array.from({ length: 20 }).map((_, i) => (
-               <div key={i} className="flex-1 h-2 bg-surface transform rotate-45 -translate-y-1" />
-             ))}
+        {/* Receipt Card */}
+        <div id="receipt-content" className="w-full bg-white rounded-3xl shadow-xl shadow-on-surface/5 p-8 relative mb-8 overflow-hidden border border-outline-variant/30">
+          <div className="flex flex-col items-center mb-6 text-center">
+            {shopInfo?.logoUrl ? (
+              <img src={shopInfo.logoUrl} alt="Logo" className="w-16 h-16 object-contain mb-4" />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                <ShoppingBag className="w-8 h-8 text-primary" />
+              </div>
+            )}
+            <h3 className="text-xl font-black text-on-surface uppercase">{shopInfo?.name || 'FATTINA POS'}</h3>
+            <p className="text-[10px] font-bold text-on-surface-variant max-w-[200px] mt-1 leading-relaxed">
+              {shopInfo?.address || 'Alamat Toko Belum Diatur'}
+            </p>
+            <p className="text-[10px] font-bold text-on-surface-variant mt-1">
+              Telp: {shopInfo?.phone || '-'}
+            </p>
           </div>
 
-          <div className="flex flex-col items-center border-b border-dashed border-outline-variant pb-6 mb-6 mt-2">
-            <p className="text-[10px] font-bold text-outline uppercase tracking-[0.2em]">ID Transaksi: #{transaction.invoiceNumber}</p>
-            <div className="flex items-center gap-2 mt-2 text-primary">
-              <QrCode className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase">{transaction.paymentMethod}</span>
+          <div className="flex flex-col items-center border-y border-dashed border-outline-variant/50 py-4 mb-6">
+            <p className="text-[10px] font-bold text-outline uppercase tracking-[0.2em]">#{transaction.invoiceNumber}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[10px] font-black text-on-surface uppercase bg-surface-container-low px-2 py-0.5 rounded">
+                METODE: {transaction.paymentMethod}
+              </span>
             </div>
           </div>
 
           <div className="space-y-4">
             {transaction.items.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-start">
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-on-surface">{item.name}</span>
-                  <span className="text-[10px] font-bold text-on-surface-variant uppercase">Qty: {item.quantity} x Rp {item.price.toLocaleString('id-ID')}</span>
+              <div key={idx} className="flex justify-between items-start gap-4">
+                <div className="flex flex-col flex-1">
+                  <span className="text-sm font-bold text-on-surface leading-tight">{item.name}</span>
+                  <span className="text-[10px] font-bold text-on-surface-variant uppercase mt-0.5">
+                    {item.quantity} x {item.price.toLocaleString('id-ID')}
+                  </span>
                 </div>
-                <span className="text-sm font-bold text-on-surface">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                <span className="text-sm font-bold text-on-surface shrink-0">
+                  {(item.price * item.quantity).toLocaleString('id-ID')}
+                </span>
               </div>
             ))}
           </div>
 
-          <div className="mt-8 pt-6 border-t border-dashed border-outline-variant space-y-2">
-            <div className="flex justify-between text-on-surface-variant text-xs font-semibold">
+          <div className="mt-8 pt-6 border-t border-dashed border-outline-variant/50 space-y-2">
+            <div className="flex justify-between text-on-surface-variant text-xs font-bold">
               <span>Subtotal</span>
-              <span>Rp {transaction.subtotal.toLocaleString('id-ID')}</span>
+              <span>{transaction.subtotal.toLocaleString('id-ID')}</span>
             </div>
-            <div className="flex justify-between text-on-surface-variant text-xs font-semibold">
-              <span>Pajak (10%)</span>
-              <span>Rp {transaction.tax.toLocaleString('id-ID')}</span>
+            
+            {transaction.discount > 0 && (
+              <div className="flex justify-between text-error text-xs font-bold">
+                <span>Potongan {transaction.discountDetails ? `(${transaction.discountDetails.name})` : ''}</span>
+                <span>- {transaction.discount.toLocaleString('id-ID')}</span>
+              </div>
+            )}
+            
+            <div className="flex justify-between text-on-surface-variant text-xs font-bold">
+              <span>Pajak</span>
+              <span>{transaction.tax.toLocaleString('id-ID')}</span>
             </div>
-            <div className="flex justify-between items-center pt-2">
-              <span className="text-lg font-bold text-on-surface">Total</span>
-              <span className="text-2xl font-bold text-primary">Rp {transaction.total.toLocaleString('id-ID')}</span>
+            
+            <div className="flex justify-between items-center pt-4 border-t border-dashed border-outline-variant/30">
+              <span className="text-lg font-black text-on-surface uppercase">Total</span>
+              <span className="text-2xl font-black text-primary">Rp {transaction.total.toLocaleString('id-ID')}</span>
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col items-center">
-            <div className="w-24 h-24 bg-surface-container-low rounded-xl flex items-center justify-center p-4">
-              <QrCode className="w-full h-full text-outline-variant" />
+          <div className="mt-10 flex flex-col items-center">
+            <div className="w-24 h-24 p-2 border-2 border-outline-variant/20 rounded-2xl opacity-80">
+              <QrCode className="w-full h-full text-on-surface-variant" />
             </div>
-            <p className="text-[10px] font-bold text-outline mt-4 uppercase tracking-widest">Terima kasih atas kunjungan Anda</p>
+            <p className="text-[10px] font-black text-on-surface-variant mt-6 uppercase tracking-widest text-center">
+              Terima Kasih Atas Kunjungan Anda<br/>Semoga Hari Anda Menyenangkan
+            </p>
           </div>
         </div>
 
-        <div className="w-full space-y-4 px-2">
+        {/* Actions */}
+        <div className="w-full space-y-4 px-2 no-print">
           <div className="grid grid-cols-2 gap-4">
             <button 
-              onClick={() => window.print()}
-              className="flex flex-col items-center justify-center gap-1 bg-white border border-primary text-primary font-bold py-4 rounded-2xl shadow-sm transition-all hover:bg-surface-container-low active:scale-95"
+              onClick={handlePrint}
+              className="flex flex-col items-center justify-center gap-2 bg-surface-container-low text-primary font-bold py-5 rounded-3xl border border-outline-variant/30 hover:border-primary/30 transition-all active:scale-[0.98] group"
             >
-              <Printer className="w-5 h-5" />
-              <span className="text-[10px] uppercase">Cetak Struk</span>
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Printer className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest">Cetak Struk</span>
             </button>
-            <button className="flex flex-col items-center justify-center gap-1 bg-white border border-primary text-primary font-bold py-4 rounded-2xl shadow-sm transition-all hover:bg-surface-container-low active:scale-95">
-              <Send className="w-5 h-5" />
-              <span className="text-[10px] uppercase">WhatsApp</span>
+            <button 
+              onClick={handleWhatsApp}
+              className="flex flex-col items-center justify-center gap-2 bg-surface-container-low text-primary font-bold py-5 rounded-3xl border border-outline-variant/30 hover:border-primary/30 transition-all active:scale-[0.98] group"
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <MessageCircle className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest">Kirim WA</span>
             </button>
           </div>
           <button 
             onClick={onNewTransaction}
-            className="w-full flex items-center justify-center gap-2 bg-primary text-white font-bold py-4 rounded-2xl shadow-lg transition-all hover:bg-primary-container active:scale-95"
+            className="w-full flex items-center justify-center gap-3 bg-primary text-on-primary font-black py-5 rounded-3xl shadow-xl shadow-primary/20 hover:shadow-primary/40 hover:-translate-y-0.5 active:translate-y-0 transition-all"
           >
             <Plus className="w-6 h-6" />
-            <span className="text-base uppercase tracking-wider">Transaksi Baru</span>
+            <span className="text-base uppercase tracking-widest">Transaksi Baru</span>
           </button>
         </div>
       </main>
     </div>
   );
 };
+
