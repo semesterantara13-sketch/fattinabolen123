@@ -102,7 +102,7 @@ export const ReportView = () => {
           <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center overflow-hidden">
             <PieChartIcon className="w-6 h-6 text-primary" />
           </div>
-          <h1 className="text-lg font-bold text-primary">Fattina POS</h1>
+          <h1 className="text-lg font-bold text-primary">Fattina Bolen</h1>
         </div>
       </header>
 

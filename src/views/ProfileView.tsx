@@ -174,7 +174,7 @@ export const ProfileView = ({ userRole, currentUser, onLogout, onTabChange }: { 
               <Store className="w-6 h-6 text-primary" />
             )}
           </div>
-          <h1 className="text-lg font-bold text-primary">{shopInfo?.name || 'Fattina POS'}</h1>
+          <h1 className="text-lg font-bold text-primary">{shopInfo?.name || 'Fattina Bolen'}</h1>
         </div>
         <button onClick={onLogout} className="text-error p-2 hover:bg-error/10 rounded-full transition-colors">
           <LogOut className="w-6 h-6" />
@@ -197,7 +197,7 @@ export const ProfileView = ({ userRole, currentUser, onLogout, onTabChange }: { 
               </button>
             )}
           </div>
-          <h2 className="text-xl font-bold text-on-surface">{shopInfo?.name || 'Fattina POS'}</h2>
+          <h2 className="text-xl font-bold text-on-surface">{shopInfo?.name || 'Fattina Bolen'}</h2>
           <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mt-1">{currentUser?.name} • {userRole}</p>
         </section>
 
@@ -382,7 +382,7 @@ export const ProfileView = ({ userRole, currentUser, onLogout, onTabChange }: { 
             <span>Keluar dari Aplikasi</span>
           </button>
           
-          <p className="text-center text-[10px] font-bold text-outline py-4 uppercase tracking-[0.2em]">Fattina POS v2.4.1 (Stable)</p>
+          <p className="text-center text-[10px] font-bold text-outline py-4 uppercase tracking-[0.2em]">Fattina Bolen v2.4.1 (Stable)</p>
         </div>
       </main>
     </div>

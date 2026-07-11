@@ -76,7 +76,7 @@ export const HomeView = ({ shopInfo, userRole, onNavigate, onTabChange, onNotifi
             )}
           </div>
           <div>
-            <h1 className="text-lg font-bold text-primary leading-tight">{shopInfo?.name || 'Fattina POS'}</h1>
+            <h1 className="text-lg font-bold text-primary leading-tight">{shopInfo?.name || 'Fattina Bolen'}</h1>
             <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">Halo, {userRole}</p>
           </div>
         </div>
@@ -188,7 +188,7 @@ export const HomeView = ({ shopInfo, userRole, onNavigate, onTabChange, onNotifi
           />
           <div className="absolute inset-0 bg-gradient-to-t from-on-surface/80 via-on-surface/20 to-transparent flex flex-col justify-end p-6">
             <h4 className="text-white text-xl font-bold">Efisiensi Dalam Genggaman</h4>
-            <p className="text-white/80 text-sm">Kelola bisnis Anda lebih mudah dengan Fattina POS Premium.</p>
+            <p className="text-white/80 text-sm">Kelola bisnis Anda lebih mudah dengan Fattina Bolen Premium.</p>
           </div>
         </div>
       </main>

@@ -60,7 +60,7 @@ export const ProductListView = ({ onAdd, onEdit }: { onAdd: () => void, onEdit: 
           <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center overflow-hidden">
             <Package className="w-6 h-6 text-on-primary-container" />
           </div>
-          <h1 className="text-lg font-bold text-primary leading-tight">Fattina POS</h1>
+          <h1 className="text-lg font-bold text-primary leading-tight">Fattina Bolen</h1>
         </div>
         <button className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high transition-all">
           <Bell className="w-6 h-6 text-primary" />

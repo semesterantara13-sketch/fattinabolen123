@@ -49,7 +49,7 @@ export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId
     const phoneNumber = prompt('Masukkan nomor WhatsApp tujuan (contoh: 628123456789):', '62');
     if (!phoneNumber) return;
 
-    let message = `*STRUK PEMBAYARAN - ${shopInfo?.name || 'Fattina POS'}*\n`;
+    let message = `*STRUK PEMBAYARAN - ${shopInfo?.name || 'Fattina Bolen'}*\n`;
     message += `--------------------------------\n`;
     message += `Inv: #${transaction.invoiceNumber}\n`;
     message += `Tgl: ${transaction.date?.toDate().toLocaleDateString('id-ID')} ${transaction.date?.toDate().toLocaleTimeString('id-ID')}\n`;

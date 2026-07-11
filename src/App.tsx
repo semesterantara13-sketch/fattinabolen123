@@ -43,7 +43,7 @@ const SplashScreen = ({ onComplete }: { onComplete: () => void }) => {
           <ShoppingBag className="w-16 h-16 text-primary fill-primary" />
         </div>
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-white tracking-tight">Fattina POS</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Fattina Bolen</h1>
           <p className="text-sm text-on-primary-container/80 mt-2 opacity-90">Solusi Kasir Digital Modern</p>
         </div>
       </motion.div>
@@ -115,7 +115,7 @@ const LoginPage = ({ onLogin, shopInfo }: { onLogin: (user: UserAccount) => void
                 <ShoppingBag className="w-16 h-16 text-primary" />
               )}
             </div>
-            <h1 className="text-3xl font-bold text-on-surface mb-1">{shopInfo?.name || 'Fattina POS'}</h1>
+            <h1 className="text-3xl font-bold text-on-surface mb-1">{shopInfo?.name || 'Fattina Bolen'}</h1>
             <p className="text-on-surface-variant font-medium">Masuk ke dashboard POS Anda</p>
           </div>
 
@@ -178,6 +178,15 @@ export default function App() {
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const [activeTab, setActiveTab] = useState('home');
   const [currentView, setCurrentView] = useState('main'); // main, add-product, edit-product, checkout, receipt, notifications, history, expense
+
+  useEffect(() => {
+    if (shopInfo?.logoUrl) {
+      const favicon = document.getElementById('favicon') as HTMLLinkElement;
+      if (favicon) {
+        favicon.href = shopInfo.logoUrl;
+      }
+    }
+  }, [shopInfo?.logoUrl]);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);
@@ -204,7 +213,7 @@ export default function App() {
       const shopSnap = await getDocs(query(collection(db, 'settings'), limit(1)));
       if (shopSnap.empty) {
         await setDoc(shopRef, {
-          name: 'Fattina POS',
+          name: 'Fattina Bolen',
           address: 'Jakarta, Indonesia',
           phone: '081234567890',
           logoUrl: '',
