@@ -1,0 +1,6 @@
+{
+  "name": "Fattina POS",
+  "description": "Solusi Kasir Digital Modern dengan analisis finansial cerdas dan manajemen inventaris efisien.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

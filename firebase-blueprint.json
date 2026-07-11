@@ -1,0 +1,55 @@
+{
+  "firestore": {
+    "collections": {
+      "products": {
+        "schema": {
+          "name": "string",
+          "category": "string",
+          "price": "number",
+          "cost": "number",
+          "stock": "number",
+          "minStock": "number",
+          "image": "string",
+          "description": "string",
+          "sku": "string",
+          "isActive": "boolean"
+        }
+      },
+      "transactions": {
+        "schema": {
+          "invoiceNumber": "string",
+          "date": "timestamp",
+          "items": "array",
+          "subtotal": "number",
+          "discount": "number",
+          "tax": "number",
+          "total": "number",
+          "paymentMethod": "string",
+          "status": "string",
+          "cashierName": "string"
+        }
+      },
+      "expenses": {
+        "schema": {
+          "name": "string",
+          "category": "string",
+          "amount": "number",
+          "date": "timestamp",
+          "notes": "string",
+          "status": "string"
+        }
+      },
+      "notifications": {
+        "schema": {
+          "title": "string",
+          "message": "string",
+          "type": "string",
+          "category": "string",
+          "date": "timestamp",
+          "isRead": "boolean",
+          "actionLabel": "string"
+        }
+      }
+    }
+  }
+}
