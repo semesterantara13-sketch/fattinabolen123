@@ -10,11 +10,183 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Transaction, Expense } from '../types';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export const ReportView = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const formatFirestoreDate = (dateField: any) => {
+    if (!dateField) return '-';
+    if (typeof dateField.toDate === 'function') {
+      return dateField.toDate().toLocaleDateString('id-ID');
+    }
+    if (dateField instanceof Date) {
+      return dateField.toLocaleDateString('id-ID');
+    }
+    if (typeof dateField === 'string' || typeof dateField === 'number') {
+      return new Date(dateField).toLocaleDateString('id-ID');
+    }
+    return '-';
+  };
+
+  const exportToPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Title
+      doc.setFontSize(18);
+      doc.setTextColor(22, 163, 74); // #16A34A (primary theme color)
+      doc.text('LAPORAN KEUANGAN - FATTINA BOLEN', 14, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139); // Slate-500
+      doc.text(`Tanggal Laporan: ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}`, 14, 27);
+      
+      // Summary Box
+      doc.setFillColor(248, 250, 252); // bg-slate-50
+      doc.roundedRect(14, 32, 182, 30, 3, 3, 'F');
+      
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text('RINGKASAN KEUANGAN:', 20, 39);
+      
+      doc.setFontSize(10);
+      doc.text(`Total Pendapatan: Rp ${totalRevenue.toLocaleString('id-ID')}`, 20, 46);
+      doc.text(`Total Pengeluaran: Rp ${totalExpenses.toLocaleString('id-ID')}`, 20, 52);
+      
+      doc.setFont('Helvetica', 'bold');
+      doc.text(`Laba Bersih: Rp ${netProfit.toLocaleString('id-ID')}`, 20, 58);
+      doc.setFont('Helvetica', 'normal');
+
+      let currentY = 70;
+
+      // Transactions Table
+      doc.setFontSize(12);
+      doc.setTextColor(22, 163, 74);
+      doc.text('A. Transaksi Penjualan', 14, currentY);
+      
+      const transactionRows = transactions.map((t, idx) => [
+        (idx + 1).toString(),
+        t.invoiceNumber || t.id,
+        formatFirestoreDate(t.date),
+        t.paymentMethod || '-',
+        `Rp ${t.subtotal.toLocaleString('id-ID')}`,
+        t.discount > 0 ? `Rp ${t.discount.toLocaleString('id-ID')}` : '-',
+        `Rp ${t.tax.toLocaleString('id-ID')}`,
+        `Rp ${t.total.toLocaleString('id-ID')}`
+      ]);
+
+      autoTable(doc, {
+        startY: currentY + 4,
+        head: [['No', 'No. Invoice', 'Tanggal', 'Metode', 'Subtotal', 'Potongan', 'Pajak', 'Total']],
+        body: transactionRows,
+        theme: 'striped',
+        headStyles: { fillColor: [22, 163, 74] },
+        styles: { fontSize: 8 },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 15;
+
+      // Check if page overflow
+      if (currentY > 250) {
+        doc.addPage();
+        currentY = 20;
+      }
+
+      // Expenses Table
+      doc.setFontSize(12);
+      doc.setTextColor(22, 163, 74);
+      doc.text('B. Daftar Pengeluaran', 14, currentY);
+
+      const expenseRows = expenses.map((e, idx) => [
+        (idx + 1).toString(),
+        formatFirestoreDate(e.date),
+        e.category || '-',
+        e.description || '-',
+        `Rp ${e.amount.toLocaleString('id-ID')}`
+      ]);
+
+      autoTable(doc, {
+        startY: currentY + 4,
+        head: [['No', 'Tanggal', 'Kategori', 'Deskripsi', 'Jumlah']],
+        body: expenseRows,
+        theme: 'striped',
+        headStyles: { fillColor: [100, 116, 139] }, // Gray/Slate color for expenses
+        styles: { fontSize: 8 },
+        margin: { left: 14, right: 14 }
+      });
+
+      doc.save(`Laporan_Keuangan_Fattina_Bolen_${new Date().toISOString().slice(0,10)}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Gagal mengekspor PDF: ' + (error as Error).message);
+    }
+  };
+
+  const exportToExcel = () => {
+    try {
+      let csvContent = '\uFEFF'; // Add UTF-8 BOM for Microsoft Excel to display characters correctly
+
+      // Header info
+      csvContent += '"LAPORAN KEUANGAN - FATTINA BOLEN"\n';
+      csvContent += `"Tanggal Unduh:","${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}"\n\n`;
+
+      // Financial Summary Section
+      csvContent += '"RINGKASAN FINANSIAL"\n';
+      csvContent += `"Total Pendapatan","Rp ${totalRevenue.toLocaleString('id-ID')}"\n`;
+      csvContent += `"Total Pengeluaran","Rp ${totalExpenses.toLocaleString('id-ID')}"\n`;
+      csvContent += `"Laba Bersih","Rp ${netProfit.toLocaleString('id-ID')}"\n\n`;
+
+      // Sales Transactions Section
+      csvContent += '"A. TRANSAKSI PENJUALAN"\n';
+      csvContent += '"No","No. Invoice","Tanggal","Metode Pembayaran","Subtotal","Potongan/Diskon","Pajak","Total"\n';
+
+      transactions.forEach((t, idx) => {
+        const invoice = t.invoiceNumber || t.id || '-';
+        const dateStr = formatFirestoreDate(t.date);
+        const method = t.paymentMethod || '-';
+        const subtotal = t.subtotal;
+        const discount = t.discount;
+        const tax = t.tax;
+        const total = t.total;
+
+        csvContent += `"${idx + 1}","${invoice}","${dateStr}","${method}","${subtotal}","${discount}","${tax}","${total}"\n`;
+      });
+
+      csvContent += '\n';
+
+      // Expenses Section
+      csvContent += '"B. DAFTAR PENGELUARAN"\n';
+      csvContent += '"No","Tanggal","Kategori","Deskripsi","Jumlah"\n';
+
+      expenses.forEach((e, idx) => {
+        const dateStr = formatFirestoreDate(e.date);
+        const category = e.category || '-';
+        const desc = (e.description || '-').replace(/"/g, '""'); // Escape double quotes
+        const amount = e.amount;
+
+        csvContent += `"${idx + 1}","${dateStr}","${category}","${desc}","${amount}"\n`;
+      });
+
+      // Create a Blob and trigger download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Laporan_Keuangan_Fattina_Bolen_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      alert('Gagal mengekspor Excel: ' + (error as Error).message);
+    }
+  };
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -113,10 +285,12 @@ export const ReportView = () => {
             <h2 className="text-3xl font-bold text-on-surface">Laporan Keuangan</h2>
           </div>
           <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-6 py-2.5 bg-white border border-outline-variant text-primary font-bold text-sm rounded-xl shadow-sm active:scale-95 transition-all">
+            <button onClick={exportToPDF} className="flex items-center gap-2 px-6 py-2.5 bg-white border border-outline-variant text-primary font-bold text-sm rounded-xl shadow-sm hover:bg-surface-container-low active:scale-95 transition-all">
+              <FileText className="w-4 h-4" />
               Export PDF
             </button>
-            <button className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-bold text-sm rounded-xl shadow-sm active:scale-95 transition-all">
+            <button onClick={exportToExcel} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-bold text-sm rounded-xl shadow-sm hover:bg-primary/95 active:scale-95 transition-all">
+              <Table className="w-4 h-4" />
               Export Excel
             </button>
           </div>

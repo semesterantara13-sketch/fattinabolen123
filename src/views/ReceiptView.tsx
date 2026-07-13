@@ -3,17 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CheckCircle2, Wallet, QrCode, Printer, Send, Plus, ShoppingBag, Bell, ArrowLeft, MessageCircle } from 'lucide-react';
-import { motion } from 'motion/react';
+import { CheckCircle2, Wallet, QrCode, Printer, Send, Plus, ShoppingBag, Bell, ArrowLeft, MessageCircle, Bluetooth, Usb } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { Transaction, ShopInfo } from '../types';
 import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import EscPosEncoder from 'esc-pos-encoder';
 
 export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId: string, onNewTransaction: () => void }) => {
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showPrinterMenu, setShowPrinterMenu] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,8 +42,115 @@ export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId
     fetchData();
   }, [transactionId]);
 
-  const handlePrint = () => {
+  const generateEscPosBuffer = () => {
+    if (!transaction) return null;
+
+    const encoder = new EscPosEncoder();
+    let result = encoder
+      .initialize()
+      .codepage('cp850')
+      .align('center')
+      .line(shopInfo?.name?.toUpperCase() || 'FATTINA BOLEN')
+      .line(shopInfo?.address || '')
+      .line(`Telp: ${shopInfo?.phone || '-'}`)
+      .line('--------------------------------')
+      .align('left')
+      .line(`Inv: #${transaction.invoiceNumber}`)
+      .line(`Tgl: ${transaction.date?.toDate().toLocaleDateString('id-ID')} ${transaction.date?.toDate().toLocaleTimeString('id-ID')}`)
+      .line('--------------------------------');
+
+    transaction.items.forEach(item => {
+      result = result
+        .line(item.name)
+        .line(`${item.quantity} x ${item.price.toLocaleString('id-ID')} = ${(item.price * item.quantity).toLocaleString('id-ID')}`);
+    });
+
+    result = result
+      .line('--------------------------------')
+      .align('right')
+      .line(`Subtotal: ${transaction.subtotal.toLocaleString('id-ID')}`);
+
+    if (transaction.discount > 0) {
+      result = result.line(`Diskon: -${transaction.discount.toLocaleString('id-ID')}`);
+    }
+
+    result = result
+      .line(`Pajak: ${transaction.tax.toLocaleString('id-ID')}`)
+      .bold(true)
+      .line(`TOTAL: Rp ${transaction.total.toLocaleString('id-ID')}`)
+      .bold(false)
+      .line('--------------------------------')
+      .align('center')
+      .line(`Metode: ${transaction.paymentMethod}`)
+      .newline()
+      .line('Terima kasih atas kunjungan Anda!')
+      .newline()
+      .newline()
+      .cut();
+
+    return result.encode();
+  };
+
+  const handleBluetoothPrint = async () => {
+    if (!transaction) return;
+    setPrinting(true);
+    try {
+      const device = await (navigator as any).bluetooth.requestDevice({
+        filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
+        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+      });
+
+      const server = await device.gatt?.connect();
+      const service = await server?.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+      const characteristics = await service?.getCharacteristics();
+      const characteristic = characteristics?.find((c: any) => c.properties.write || c.properties.writeWithoutResponse);
+
+      if (!characteristic) throw new Error('Printer characteristic not found');
+
+      const buffer = generateEscPosBuffer();
+      if (buffer) {
+        // Chunk size for BLE is usually small
+        const chunkSize = 20;
+        for (let i = 0; i < buffer.length; i += chunkSize) {
+          await characteristic.writeValue(buffer.slice(i, i + chunkSize));
+        }
+      }
+      alert('Berhasil mengirim data ke printer Bluetooth');
+    } catch (err) {
+      console.error('Bluetooth Print Error:', err);
+      alert('Gagal mencetak via Bluetooth: ' + (err as Error).message);
+    } finally {
+      setPrinting(false);
+      setShowPrinterMenu(false);
+    }
+  };
+
+  const handleUsbPrint = async () => {
+    if (!transaction) return;
+    setPrinting(true);
+    try {
+      const device = await (navigator as any).usb.requestDevice({ filters: [] });
+      await device.open();
+      if (device.configuration === null) await device.selectConfiguration(1);
+      await device.claimInterface(0);
+
+      const buffer = generateEscPosBuffer();
+      if (buffer) {
+        await device.transferOut(1, buffer);
+      }
+      alert('Berhasil mengirim data ke printer USB');
+    } catch (err) {
+      console.error('USB Print Error:', err);
+      alert('Gagal mencetak via USB: ' + (err as Error).message);
+    } finally {
+      setPrinting(false);
+      setShowPrinterMenu(false);
+    }
+  };
+
+  const handleSystemPrint = () => {
     window.print();
+    setShowPrinterMenu(false);
   };
 
   const handleWhatsApp = () => {
@@ -93,20 +203,34 @@ export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId
 
   return (
     <div className="min-h-screen bg-surface flex flex-col print:bg-white">
-      {/* Print Specific Styles */}
+      {/* Print Specific Styles for 58mm */}
       <style>{`
         @media print {
+          @page {
+            size: 58mm auto;
+            margin: 0;
+          }
+          body {
+            width: 58mm;
+            margin: 0;
+            padding: 0;
+            background: white;
+          }
           body * { visibility: hidden; }
           #receipt-content, #receipt-content * { visibility: visible; }
           #receipt-content { 
             position: absolute; 
             left: 0; 
             top: 0; 
-            width: 100%; 
-            padding: 0; 
+            width: 58mm; 
+            padding: 4mm; 
             margin: 0;
             box-shadow: none;
             border: none;
+            font-size: 10pt;
+          }
+          #receipt-content img {
+            max-width: 30mm;
           }
           .no-print { display: none !important; }
         }
@@ -120,7 +244,7 @@ export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId
           <h1 className="text-lg font-bold text-primary">Detail Transaksi</h1>
         </div>
         <div className="flex gap-2">
-          <button onClick={handlePrint} className="p-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
+          <button onClick={() => setShowPrinterMenu(true)} className="p-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
             <Printer className="w-5 h-5" />
           </button>
           <button onClick={handleWhatsApp} className="p-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
@@ -226,7 +350,7 @@ export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId
         <div className="w-full space-y-4 px-2 no-print">
           <div className="grid grid-cols-2 gap-4">
             <button 
-              onClick={handlePrint}
+              onClick={() => setShowPrinterMenu(true)}
               className="flex flex-col items-center justify-center gap-2 bg-surface-container-low text-primary font-bold py-5 rounded-3xl border border-outline-variant/30 hover:border-primary/30 transition-all active:scale-[0.98] group"
             >
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -253,6 +377,101 @@ export const ReceiptView = ({ transactionId, onNewTransaction }: { transactionId
           </button>
         </div>
       </main>
+
+      {/* Printer Selection Modal */}
+      <AnimatePresence>
+        {showPrinterMenu && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPrinterMenu(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] no-print"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 bg-surface rounded-t-[32px] p-8 z-[101] no-print shadow-2xl"
+            >
+              <div className="w-12 h-1.5 bg-outline-variant/30 rounded-full mx-auto mb-8" />
+              <h3 className="text-xl font-black text-on-surface mb-6 text-center">Pilih Metode Cetak</h3>
+              
+              <div className="grid grid-cols-1 gap-4 mb-8">
+                <button
+                  onClick={handleBluetoothPrint}
+                  disabled={printing}
+                  className="flex items-center gap-4 p-5 bg-surface-container-low rounded-2xl border border-outline-variant/30 hover:border-primary transition-all group"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                    <Bluetooth className="w-6 h-6" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-on-surface">Cetak via Bluetooth</p>
+                    <p className="text-xs text-on-surface-variant font-medium">Hubungkan ke printer Bluetooth (58mm)</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleUsbPrint}
+                  disabled={printing}
+                  className="flex items-center gap-4 p-5 bg-surface-container-low rounded-2xl border border-outline-variant/30 hover:border-primary transition-all group"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                    <Usb className="w-6 h-6" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-on-surface">Cetak via Kabel USB</p>
+                    <p className="text-xs text-on-surface-variant font-medium">Gunakan kabel data USB OTG</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleSystemPrint}
+                  disabled={printing}
+                  className="flex items-center gap-4 p-5 bg-surface-container-low rounded-2xl border border-outline-variant/30 hover:border-primary transition-all group"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                    <Printer className="w-6 h-6" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-on-surface">Cetak Sistem Browser</p>
+                    <p className="text-xs text-on-surface-variant font-medium">Gunakan dialog cetak bawaan browser</p>
+                  </div>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowPrinterMenu(false)}
+                className="w-full py-4 text-on-surface-variant font-black uppercase tracking-widest text-sm hover:text-on-surface transition-colors"
+              >
+                Batal
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Printing Loading Overlay */}
+      <AnimatePresence>
+        {printing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-md z-[200] flex flex-col items-center justify-center no-print text-white"
+          >
+            <div className="w-20 h-20 relative mb-6">
+              <div className="absolute inset-0 border-4 border-white/20 rounded-full" />
+              <div className="absolute inset-0 border-4 border-white border-t-transparent rounded-full animate-spin" />
+            </div>
+            <p className="text-xl font-black uppercase tracking-widest">Sedang Mencetak...</p>
+            <p className="text-sm opacity-60 mt-2 font-medium">Jangan putus koneksi printer Anda</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
